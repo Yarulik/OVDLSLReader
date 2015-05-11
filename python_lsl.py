@@ -1,5 +1,5 @@
 import numpy, sys, os
-
+from math import ceil
 # retrieve LSL library compiled by OpenViBE
 # FIXME: not working??
 ov_lib_path = os.getcwd() + "/../dependencies/lib/"
@@ -20,7 +20,6 @@ class MyOVBox(OVBox):
       self.channelCount = 0
       self.samplingFrequency = 0
       self.epochSampleCount = 0
-      self.minValue = 0
       self.startTime = 0.
       self.endTime = 0.
       self.dimensionSizes = list()
@@ -35,12 +34,10 @@ class MyOVBox(OVBox):
       self.samplingFrequency = int(self.setting['Sampling frequency'])
       self.epochSampleCount = int(self.setting['Generated epoch sample count'])
       self.stream_type=self.setting['Stream type']
-      
       # total channels for all streams
       self.channelCount = 0
       
       print "Looking for streams of type: " + self.stream_type
-
       streams = resolve_stream('type',self.stream_type)
       self.nb_streams = len(streams)
       print "Nb streams: " + str(self.nb_streams)
@@ -52,8 +49,10 @@ class MyOVBox(OVBox):
       
       # save inlets and info + build signal header
       for stream in streams:
-        # limit to 1s buflen, kinda drift correction 1000ms
-        inlet = StreamInlet(stream, max_buflen=1)
+        # limit buflen just to what we need to fill each chuck, kinda drift correction
+        buffer_length = int(ceil(float(self.epochSampleCount) / self.samplingFrequency))
+        print "LSL buffer length: " + str(buffer_length)
+        inlet = StreamInlet(stream, max_buflen=buffer_length)
         self.inlets.append(inlet)
         info = inlet.info()
         name = info.name()
@@ -79,23 +78,7 @@ class MyOVBox(OVBox):
       self.signalBuffer = numpy.zeros((self.channelCount, self.epochSampleCount))
       self.updateTimeBuffer()
       self.updateSignalBuffer()
-      print "end init"
-      
-
-   def updateFromGUI(self):
-     print "updateFromGUI"
-     cur_chan = 0
-     for i in range(self.nb_streams):
-       inlet = self.inlets[i]
-       info = self.infos[i]
-       nb_channels = info.channel_count()
-       # fill values with each channel -- timeout 0 so may have duplicate
-       sample,timestamp = inlet.pull_sample(0)
-       print "feed: " + str(i),
-       print sample	 
-       self.values[cur_chan:cur_chan+nb_channels] = sample
-       cur_chan += nb_channels
-     
+        
    def updateStartTime(self):
       self.startTime += 1.*self.epochSampleCount/self.samplingFrequency
 
@@ -103,11 +86,9 @@ class MyOVBox(OVBox):
       self.endTime = float(self.startTime + 1.*self.epochSampleCount/self.samplingFrequency)
 
    def updateTimeBuffer(self):
-      print "updateTimeBuffer"
       self.timeBuffer = numpy.arange(self.startTime, self.endTime, 1./self.samplingFrequency)
 
    def updateSignalBuffer(self):
-     print "updateSignalBuffer"
      # read XX times each channel to fill chunk
      cur_chan = 0
      for i in range(self.nb_streams):
@@ -117,20 +98,13 @@ class MyOVBox(OVBox):
        for j in range(self.epochSampleCount):
          # fill values with each channel -- timeout 0 so may have duplicate
          sample,timestamp = inlet.pull_sample(timeout=0)
-         print "current stream: " + str(i)
-         print "current count: " + str(j)
-         print "sample: ",
-         print sample
-         print "current buffer: ",
-         print self.signalBuffer
          # update value only if got new ones
          if sample != None:
-           print "new values"
+           #print "new values"
            self.last_values[cur_chan:cur_chan+nb_channels] = sample
            self.signalBuffer[cur_chan:cur_chan+nb_channels, j] = sample
          # else fetch values from memory if no new
          else:
-           print "from backup"
            self.signalBuffer[cur_chan:cur_chan+nb_channels, j] =  self.last_values[cur_chan:cur_chan+nb_channels]
        cur_chan += nb_channels
 
@@ -142,24 +116,18 @@ class MyOVBox(OVBox):
 
    # the process is straightforward
    def process(self):
-      print "process"
       start = self.timeBuffer[0]
-      print "start: " + str(start)
       end = self.timeBuffer[-1]
-      print "end: " + str(end)
       if self.getCurrentTime() >= end:
-	 print "in condition"
          # deal with data
          self.updateStartTime()
          self.updateEndTime()
          self.updateTimeBuffer()
          self.updateSignalBuffer()
          self.sendSignalBufferToOpenvibe()
-      print "end process"
 
    # re-define the uninitialize method to output the end chunk + close streams
    def uninitialize(self):
-      print "uninit"
       for inlet in self.inlets:
         inlet.close_stream()
       end = self.timeBuffer[-1]
