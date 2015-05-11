@@ -12,7 +12,8 @@ from pylsl import StreamInlet, resolve_stream
 
 class MyOVBox(OVBox):
    """
-   Embedding LSL reading within a python box
+   Embedding LSL reading within a python box.
+   WARNING: the resolution order of streams is random, ie constant order is not guaranteed
    """
    def __init__(self):
       OVBox.__init__(self)
@@ -35,7 +36,6 @@ class MyOVBox(OVBox):
       self.epochSampleCount = int(self.setting['Generated epoch sample count'])
       self.stream_type=self.setting['Stream type']
       
-      
       # total channels for all streams
       self.channelCount = 0
       
@@ -50,21 +50,25 @@ class MyOVBox(OVBox):
       # retrieve also corresponding StreamInfo for future uses (eg sampling rate)
       self.infos = []
       
+      # save inlets and info + build signal header
       for stream in streams:
+        # limit to 1s buflen, kinda drift correction 1000ms
+        #inlet = StreamInlet(stream, max_buflen=1)
         inlet = StreamInlet(stream)
         self.inlets.append(inlet)
         info = inlet.info()
-        print "Stream: " + info.name()
+        name = info.name()
+        print "Stream name: " + name
         self.infos.append(info)
         print "Nb channels: " + str(info.channel_count())
         self.channelCount += info.channel_count()
-        
+        name = info.name()
+        print "Name: " + name
+        for i in range(info.channel_count()):
+          self.dimensionLabels.append(name + ":" + str(i))
+
       self.values =  self.channelCount*[0]
       
-      #creation of the signal header
-      for i in range(self.channelCount):
-        self.dimensionLabels.append('Min value') 
-        
       self.dimensionLabels += self.epochSampleCount*['']
       self.dimensionSizes = [self.channelCount, self.epochSampleCount]
       self.signalHeader = OVSignalHeader(0., 0., self.dimensionSizes, self.dimensionLabels, self.samplingFrequency)
