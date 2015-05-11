@@ -15,6 +15,7 @@ class MyOVBox(OVBox):
    Embedding LSL reading within a python box.
    WARNING: the resolution order of streams is random, ie constant order is not guaranteed
    WARNING: in case a specific stream name is target, will retain the first match found
+   NB: if "Sampling frequency" is set, then will force value for all streams, otherwise will select frequency reported by first one and apply it to all
    """
    def __init__(self):
       OVBox.__init__(self)
@@ -32,7 +33,12 @@ class MyOVBox(OVBox):
    # this time we also re-define the initialize method to directly prepare the header and the first data chunk
    def initialize(self):           
       # settings are retrieved in the dictionary
-      self.samplingFrequency = int(self.setting['Sampling frequency'])
+      try:
+        self.samplingFrequency = int(self.setting['Sampling frequency'])
+      except:
+        print "Sampling frequency not set or error while parsing."
+        self.samplingFrequency = 0
+      print "Sampling frequency: " + str(self.samplingFrequency)
       self.epochSampleCount = int(self.setting['Generated epoch sample count'])
       self.stream_type=self.setting['Stream type']
       # total channels for all streams
@@ -59,22 +65,35 @@ class MyOVBox(OVBox):
       
       # save inlets and info + build signal header
       for stream in streams:
-        # limit buflen just to what we need to fill each chuck, kinda drift correction
-        buffer_length = int(ceil(float(self.epochSampleCount) / self.samplingFrequency))
-        print "LSL buffer length: " + str(buffer_length)
-        inlet = StreamInlet(stream, max_buflen=buffer_length)
+        inlet = StreamInlet(stream)
         info = inlet.info()
         name = info.name()
         print "Stream name: " + name
         # if target one stream, ignore false ones
         if not all_streams and name != self.stream_name:
           continue
-        self.inlets.append(inlet)
-        self.infos.append(info)
         print "Nb channels: " + str(info.channel_count())
         self.channelCount += info.channel_count()
+        stream_freq = info.nominal_srate()
+        print "Sampling frequency: " + str(stream_freq)
+        if self.samplingFrequency == 0:
+          print "Set sampling frequency to:" + str(stream_freq)
+          self.samplingFrequency = stream_freq
+        elif self.samplingFrequency != stream_freq:
+          print "WARNING: sampling frequency of current stream (" + str(stream_freq) + ") differs from option set to box (" + str(self.samplingFrequency) + ")."
         for i in range(info.channel_count()):
           self.dimensionLabels.append(name + ":" + str(i))
+          
+        # We must delay real inlet/info init because we may know the defifitive sampling frequency
+        # limit buflen just to what we need to fill each chuck, kinda drift correction
+        # TODO: not a very pretty code...
+        buffer_length = int(ceil(float(self.epochSampleCount) / self.samplingFrequency))
+        print "LSL buffer length: " + str(buffer_length)
+        inlet = StreamInlet(stream, max_buflen=buffer_length)
+        info = inlet.info()
+        self.inlets.append(inlet)
+        self.infos.append(info)
+        
         # if we're still here when we target a stream, it means we foand it
         if not all_streams:
           print "Found target stream"
