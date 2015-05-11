@@ -14,6 +14,7 @@ class MyOVBox(OVBox):
    """
    Embedding LSL reading within a python box.
    WARNING: the resolution order of streams is random, ie constant order is not guaranteed
+   WARNING: in case a specific stream name is target, will retain the first match found
    """
    def __init__(self):
       OVBox.__init__(self)
@@ -37,10 +38,19 @@ class MyOVBox(OVBox):
       # total channels for all streams
       self.channelCount = 0
       
+      all_streams = self.setting['Get all streams'] == "true"
+      self.stream_name=self.setting['Stream name'] # in case !all_streams
+      
       print "Looking for streams of type: " + self.stream_type
+      
       streams = resolve_stream('type',self.stream_type)
-      self.nb_streams = len(streams)
-      print "Nb streams: " + str(self.nb_streams)
+      print "Nb streams: " + str( len(streams))
+      
+      if not all_streams:
+        print "Will only select (first) stream named: " + self.stream_name
+        self.nb_streams = 1
+      else:
+        self.nb_streams = len(streams)
 
       # create inlets to read from each stream
       self.inlets = []
@@ -53,18 +63,27 @@ class MyOVBox(OVBox):
         buffer_length = int(ceil(float(self.epochSampleCount) / self.samplingFrequency))
         print "LSL buffer length: " + str(buffer_length)
         inlet = StreamInlet(stream, max_buflen=buffer_length)
-        self.inlets.append(inlet)
         info = inlet.info()
         name = info.name()
         print "Stream name: " + name
+        # if target one stream, ignore false ones
+        if not all_streams and name != self.stream_name:
+          continue
+        self.inlets.append(inlet)
         self.infos.append(info)
         print "Nb channels: " + str(info.channel_count())
         self.channelCount += info.channel_count()
-        name = info.name()
-        print "Name: " + name
         for i in range(info.channel_count()):
           self.dimensionLabels.append(name + ":" + str(i))
-
+        # if we're still here when we target a stream, it means we foand it
+        if not all_streams:
+          print "Found target stream"
+          break
+ 
+      # we need at least one stream before we let go
+      if self.channelCount <= 0:
+        raise Exception("Error: no stream found.")
+      
       # backup last values pulled in case pull(timeout=0) return None later
       self.last_values =  self.channelCount*[0]
       
@@ -116,6 +135,8 @@ class MyOVBox(OVBox):
 
    # the process is straightforward
    def process(self):
+      if self.channelCount <= 0:
+        return
       start = self.timeBuffer[0]
       end = self.timeBuffer[-1]
       if self.getCurrentTime() >= end:
@@ -128,6 +149,8 @@ class MyOVBox(OVBox):
 
    # re-define the uninitialize method to output the end chunk + close streams
    def uninitialize(self):
+      if self.channelCount <= 0:
+        return
       for inlet in self.inlets:
         inlet.close_stream()
       end = self.timeBuffer[-1]
