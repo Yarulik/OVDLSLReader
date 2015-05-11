@@ -8,5 +8,6 @@ May not work with other system without modifying "pylsl.py" and "libname" variab
 * test_python_lsl.xml: corresponding openvibe scenario to test it
 
 * SendStringMarkers.py: generate random LSL stimulations
+* SendStringMarkersGUI.py: same, with a nice GUI and a mouse
 * python_lsl_stims.py: openvibe script to read stimulations
 * test_python_lsl_stim_reader.xml: corresponding openvibe scenario to test it
