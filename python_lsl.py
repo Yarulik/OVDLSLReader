@@ -53,8 +53,7 @@ class MyOVBox(OVBox):
       # save inlets and info + build signal header
       for stream in streams:
         # limit to 1s buflen, kinda drift correction 1000ms
-        #inlet = StreamInlet(stream, max_buflen=1)
-        inlet = StreamInlet(stream)
+        inlet = StreamInlet(stream, max_buflen=1)
         self.inlets.append(inlet)
         info = inlet.info()
         name = info.name()
@@ -67,7 +66,8 @@ class MyOVBox(OVBox):
         for i in range(info.channel_count()):
           self.dimensionLabels.append(name + ":" + str(i))
 
-      self.values =  self.channelCount*[0]
+      # backup last values pulled in case pull(timeout=0) return None later
+      self.last_values =  self.channelCount*[0]
       
       self.dimensionLabels += self.epochSampleCount*['']
       self.dimensionSizes = [self.channelCount, self.epochSampleCount]
@@ -89,8 +89,8 @@ class MyOVBox(OVBox):
        inlet = self.inlets[i]
        info = self.infos[i]
        nb_channels = info.channel_count()
-       # fill values with each channel
-       sample,timestamp = inlet.pull_sample()
+       # fill values with each channel -- timeout 0 so may have duplicate
+       sample,timestamp = inlet.pull_sample(0)
        print "feed: " + str(i),
        print sample	 
        self.values[cur_chan:cur_chan+nb_channels] = sample
@@ -108,14 +108,31 @@ class MyOVBox(OVBox):
 
    def updateSignalBuffer(self):
      print "updateSignalBuffer"
-     for i in range(self.channelCount):
-       value = self.values[i]
-       print "value for " + str(i) + ": ",
-       print value
-       self.signalBuffer[i,:] = value
-       print "buffer:",
-       print self.signalBuffer[i]
-       print "ok"
+     # read XX times each channel to fill chunk
+     cur_chan = 0
+     for i in range(self.nb_streams):
+       inlet = self.inlets[i]
+       info = self.infos[i]
+       nb_channels = info.channel_count()
+       for j in range(self.epochSampleCount):
+         # fill values with each channel -- timeout 0 so may have duplicate
+         sample,timestamp = inlet.pull_sample(timeout=0)
+         print "current stream: " + str(i)
+         print "current count: " + str(j)
+         print "sample: ",
+         print sample
+         print "current buffer: ",
+         print self.signalBuffer
+         # update value only if got new ones
+         if sample != None:
+           print "new values"
+           self.last_values[cur_chan:cur_chan+nb_channels] = sample
+           self.signalBuffer[cur_chan:cur_chan+nb_channels, j] = sample
+         # else fetch values from memory if no new
+         else:
+           print "from backup"
+           self.signalBuffer[cur_chan:cur_chan+nb_channels, j] =  self.last_values[cur_chan:cur_chan+nb_channels]
+       cur_chan += nb_channels
 
    def sendSignalBufferToOpenvibe(self):
       start = self.timeBuffer[0]
@@ -132,14 +149,12 @@ class MyOVBox(OVBox):
       print "end: " + str(end)
       if self.getCurrentTime() >= end:
 	 print "in condition"
-         # retrieve values
-         self.updateFromGUI()
          # deal with data
-         self.sendSignalBufferToOpenvibe()
          self.updateStartTime()
          self.updateEndTime()
          self.updateTimeBuffer()
          self.updateSignalBuffer()
+         self.sendSignalBufferToOpenvibe()
       print "end process"
 
    # re-define the uninitialize method to output the end chunk + close streams
