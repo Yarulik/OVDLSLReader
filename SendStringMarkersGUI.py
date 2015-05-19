@@ -14,7 +14,7 @@ outlet = StreamOutlet(info)
 print("now sending markers...")
 
 # List of used markers -- see "lua-stimulator-stim-codes.lua" for a complete list.
-markernames = ['OVTK_GDF_Start_Of_Trial', 'OVTK_StimulationId_Label_01', 'OVTK_StimulationId_Label_02', 'OVTK_GDF_End_Of_Trial']
+markernames = ['OVTK_StimulationId_ExperimentStart', 'OVTK_StimulationId_ExperimentStop', 'OVTK_StimulationId_BaselineStart', 'OVTK_StimulationId_BaselineStop', 'OVTK_StimulationId_SegmentStart', 'OVTK_StimulationId_SegmentStop', 'OVTK_StimulationId_TrialStart', 'OVTK_StimulationId_TrialStop']
 
 buttons = []
 last_but = 0
