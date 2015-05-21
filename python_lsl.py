@@ -49,7 +49,7 @@ class MyOVBox(OVBox):
       
       print "Looking for streams of type: " + self.stream_type
       
-      streams = resolve_stream('type',self.stream_type, timeout=2, wait_time=1)
+      streams = resolve_stream('type',self.stream_type)
       print "Nb streams: " + str( len(streams))
       
       if not all_streams:
