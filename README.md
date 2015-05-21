@@ -22,3 +22,4 @@ GUI aimed at "bluff game" project.
 * OVTK_StimulationId_TrialStart / OVTK_StimulationId_TrialStop: start / stop of a play
 
 Also new scenario, which records LSL streams involved: bluff_game_record.xml
+
