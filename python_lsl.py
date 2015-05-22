@@ -5,8 +5,11 @@ from math import ceil
 ov_lib_path = os.getcwd() + "/../dependencies/lib/"
 sys.path.append(ov_lib_path)
 
+from os.path import expanduser
+home = expanduser("~")
+
 # FIXME absolute path to point to pylsl.py
-sys.path.append("/home/jfrey/bluff_game/ov_lsl/lib")
+sys.path.append(home + "/bluff_game/OVDLSLReader/lib")
 
 from pylsl import StreamInlet, resolve_stream
 
