@@ -128,6 +128,8 @@ class MyOVBox(OVBox):
 
    def updateTimeBuffer(self):
       self.timeBuffer = numpy.arange(self.startTime, self.endTime, 1./self.samplingFrequency)
+      # crop number of chunks in case it is not a multiple of frequency
+      self.timeBuffer = self.timeBuffer[0:self.epochSampleCount]
 
    def updateSignalBuffer(self):
      # read XX times each channel to fill chunk
